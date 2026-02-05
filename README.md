@@ -1,5 +1,3 @@
-## Setup
-
 ### 1. basic set up
 
 **VS Code** (or any editor): https://code.visualstudio.com
