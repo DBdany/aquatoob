@@ -1,65 +1,344 @@
-import Image from "next/image";
+"use client";
+
+import { useState, useEffect, useCallback, DragEvent, KeyboardEvent } from "react";
+
+interface VideoInfo {
+  title: string;
+  thumbnail: string;
+  duration: number;
+  durationFormatted: string;
+  uploader: string;
+}
+
+type Format = "mp4" | "mp3";
+type Quality = "360" | "480" | "720" | "1080";
+type Status = "idle" | "fetching" | "converting" | "done" | "error";
+
+function isValidYouTubeURL(url: string): boolean {
+  return /^(https?:\/\/)?(www\.)?(youtube\.com\/(watch\?v=|shorts\/)|youtu\.be\/).+/.test(
+    url.trim()
+  );
+}
+
+function extractVideoId(url: string): string | null {
+  const match = url.match(/(?:v=|youtu\.be\/|shorts\/)([a-zA-Z0-9_-]{11})/);
+  return match ? match[1] : null;
+}
+
+function Bubbles() {
+  const [bubbles, setBubbles] = useState<
+    Array<{ id: number; size: number; left: number; duration: number; delay: number }>
+  >([]);
+
+  useEffect(() => {
+    const newBubbles = Array.from({ length: 20 }, (_, i) => ({
+      id: i,
+      size: Math.random() * 60 + 20,
+      left: Math.random() * 100,
+      duration: Math.random() * 12 + 10,
+      delay: Math.random() * 15,
+    }));
+    setBubbles(newBubbles);
+  }, []);
+
+  return (
+    <div className="bubbles">
+      {bubbles.map((b) => (
+        <div
+          key={b.id}
+          className="bubble"
+          style={{
+            width: `${b.size}px`,
+            height: `${b.size}px`,
+            left: `${b.left}%`,
+            animationDuration: `${b.duration}s`,
+            animationDelay: `${b.delay}s`,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
 
 export default function Home() {
+  const [url, setUrl] = useState("");
+  const [format, setFormat] = useState<Format>("mp4");
+  const [quality, setQuality] = useState<Quality>("720");
+  const [status, setStatus] = useState<Status>("idle");
+  const [error, setError] = useState("");
+  const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handlePaste = useCallback(async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      setUrl(text);
+      setError("");
+    } catch {
+      
+    }
+  }, []);
+
+  const handleDragOver = useCallback((e: DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback((e: DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const text = e.dataTransfer.getData("text/plain");
+    if (text) {
+      setUrl(text);
+      setError("");
+    }
+  }, []);
+
+  const handleConvert = useCallback(async () => {
+    if (!url.trim()) return;
+
+    if (!isValidYouTubeURL(url)) {
+      setError("Oops! That doesn't look like a valid YouTube URL.");
+      return;
+    }
+
+    setError("");
+    setStatus("fetching");
+    setVideoInfo(null);
+
+    try {
+      const infoRes = await fetch("/api/info", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+
+      if (!infoRes.ok) {
+        const data = await infoRes.json();
+        throw new Error(data.error || "Failed to fetch video info");
+      }
+
+      const info: VideoInfo = await infoRes.json();
+      setVideoInfo(info);
+      setStatus("converting");
+
+      const convertRes = await fetch("/api/convert", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url, format, quality, title: info.title }),
+      });
+
+      if (!convertRes.ok) {
+        const data = await convertRes.json();
+        throw new Error(data.error || "Conversion failed");
+      }
+
+      const disposition = convertRes.headers.get("Content-Disposition");
+      let filename = `video.${format}`;
+      if (disposition) {
+        const match = disposition.match(/filename="?([^"]+)"?/);
+        if (match) {
+          filename = decodeURIComponent(match[1]);
+        }
+      }
+
+      const blob = await convertRes.blob();
+      const downloadUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = downloadUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(downloadUrl);
+
+      setStatus("done");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+      setStatus("error");
+    }
+  }, [url, format, quality]);
+
+  const handleReset = useCallback(() => {
+    setUrl("");
+    setStatus("idle");
+    setError("");
+    setVideoInfo(null);
+  }, []);
+
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Enter" && url.trim()) {
+        handleConvert();
+      }
+    },
+    [url, handleConvert]
+  );
+
+  const isConverting = status === "fetching" || status === "converting";
+  const showProgress = status !== "idle" && status !== "error";
+  const videoId = url ? extractVideoId(url) : null;
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div
+      className="flex min-h-screen flex-col items-center justify-start px-4 py-8 pb-16"
+      onDragOver={handleDragOver}
+      onDragEnter={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      <Bubbles />
+
+      <div className="leaf leaf-1">🍃</div>
+      <div className="leaf leaf-2">🌿</div>
+      <div className="leaf leaf-3">☘️</div>
+
+      <div className={`container ${isDragging ? "drag-active" : ""}`}>
+        <div className="title-bar">
+          <div className="dots">
+            <div className="dot dot-red" />
+            <div className="dot dot-yel" />
+            <div className="dot dot-grn" />
+          </div>
+          <h1>✦ AquaToob Converter ✦</h1>
+          <div className="spacer" />
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+
+        <div className="glass-panel">
+          <div className="logo-section">
+            <div className="logo-icon">💧</div>
+            <h2>AquaToob</h2>
+            <p>paste · convert · download ✨</p>
+          </div>
+
+          <div className="input-group">
+            <span className="input-icon">🔗</span>
+            <input
+              type="text"
+              value={url}
+              onChange={(e) => {
+                setUrl(e.target.value);
+                setError("");
+              }}
+              onKeyDown={handleKeyDown}
+              placeholder="Paste a YouTube URL here..."
+              autoComplete="off"
+              spellCheck={false}
+              disabled={isConverting}
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            <button
+              className="paste-btn"
+              onClick={handlePaste}
+              title="Paste from clipboard"
+              disabled={isConverting}
+            >
+              📋
+            </button>
+          </div>
+          <div className="drag-hint">or drag & drop a link onto this window ✦</div>
+
+          <div className="format-selector">
+            <button
+              className={`format-btn ${format === "mp4" ? "active" : ""}`}
+              onClick={() => setFormat("mp4")}
+              disabled={isConverting}
+            >
+              <span className="emoji">🎬</span> MP4
+            </button>
+            <button
+              className={`format-btn ${format === "mp3" ? "active" : ""}`}
+              onClick={() => setFormat("mp3")}
+              disabled={isConverting}
+            >
+              <span className="emoji">🎵</span> MP3
+            </button>
+          </div>
+
+          {format === "mp4" && (
+            <div className="quality-row">
+              <label>⚙️ Quality:</label>
+              <select
+                className="quality-select"
+                value={quality}
+                onChange={(e) => setQuality(e.target.value as Quality)}
+                disabled={isConverting}
+              >
+                <option value="1080">1080p HD ✦</option>
+                <option value="720">720p</option>
+                <option value="480">480p</option>
+                <option value="360">360p</option>
+              </select>
+            </div>
+          )}
+
+          <button
+            className="convert-btn"
+            onClick={handleConvert}
+            disabled={!url.trim() || isConverting}
           >
-            Documentation
-          </a>
+            <span>{isConverting ? "⏳" : "⚡"}</span>
+            {isConverting ? "Converting..." : "Convert Now!"}
+          </button>
+
+          {error && <div className="error-msg">⚠️ {error}</div>}
+
+          {showProgress && (
+            <div className="progress-area">
+              <div className="preview-card">
+                <div className="preview-thumb">
+                  {videoId ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={`https://img.youtube.com/vi/${videoId}/mqdefault.jpg`}
+                      alt="thumbnail"
+                      onError={(e) => {
+                        e.currentTarget.style.display = "none";
+                        e.currentTarget.parentElement!.innerHTML = "🎥";
+                      }}
+                    />
+                  ) : (
+                    "🎥"
+                  )}
+                </div>
+                <div className="preview-info">
+                  <div className="title">
+                    {videoInfo?.title || "Loading video info..."}
+                  </div>
+                  <div className="meta">
+                    {videoInfo
+                      ? `${videoInfo.durationFormatted} · ${format.toUpperCase()} ${format === "mp4" ? quality + "p" : "320kbps"}`
+                      : ""}
+                  </div>
+                </div>
+              </div>
+
+              <div className="progress-bar-track">
+                <div
+                  className={`progress-bar-fill ${status === "done" ? "" : "indeterminate"}`}
+                  style={{ width: status === "done" ? "100%" : undefined }}
+                />
+              </div>
+              <div className="progress-text">
+                {status === "fetching" && "Fetching video info..."}
+                {status === "converting" && "Downloading & converting..."}
+                {status === "done" && "✅ Done! Check your downloads."}
+              </div>
+
+              {status === "done" && (
+                <button className="another-btn" onClick={handleReset}>
+                  🔄 Convert Another Video
+                </button>
+              )}
+            </div>
+          )}
         </div>
-      </main>
+
+        <div className="footer">AquaToob v1.0 — Made with 💧 and ☀️</div>
+      </div>
     </div>
   );
 }
