@@ -25,25 +25,25 @@ function extractVideoId(url: string): string | null {
   return match ? match[1] : null;
 }
 
-function Bubbles() {
-  const [bubbles, setBubbles] = useState<
+function GlassOrbs() {
+  const [orbs, setOrbs] = useState<
     Array<{ id: number; size: number; left: number; duration: number; delay: number }>
   >([]);
 
   useEffect(() => {
-    const newBubbles = Array.from({ length: 20 }, (_, i) => ({
+    const newOrbs = Array.from({ length: 16 }, (_, i) => ({
       id: i,
-      size: Math.random() * 60 + 20,
+      size: Math.random() * 50 + 15,
       left: Math.random() * 100,
-      duration: Math.random() * 12 + 10,
-      delay: Math.random() * 15,
+      duration: Math.random() * 14 + 12,
+      delay: Math.random() * 18,
     }));
-    setBubbles(newBubbles);
+    setOrbs(newOrbs);
   }, []);
 
   return (
     <div className="bubbles">
-      {bubbles.map((b) => (
+      {orbs.map((b) => (
         <div
           key={b.id}
           className="bubble"
@@ -56,6 +56,17 @@ function Bubbles() {
           }}
         />
       ))}
+    </div>
+  );
+}
+
+function LightRays() {
+  return (
+    <div className="light-rays">
+      <div className="light-ray" />
+      <div className="light-ray" />
+      <div className="light-ray" />
+      <div className="light-ray" />
     </div>
   );
 }
@@ -75,7 +86,7 @@ export default function Home() {
       setUrl(text);
       setError("");
     } catch {
-      
+
     }
   }, []);
 
@@ -102,7 +113,7 @@ export default function Home() {
     if (!url.trim()) return;
 
     if (!isValidYouTubeURL(url)) {
-      setError("Oops! That doesn't look like a valid YouTube URL.");
+      setError("That doesn't look like a valid YouTube URL.");
       return;
     }
 
@@ -185,17 +196,14 @@ export default function Home() {
 
   return (
     <div
-      className="flex min-h-screen flex-col items-center justify-start px-4 py-8 pb-16"
+      className="flex min-h-screen flex-col items-center justify-start px-4 py-10 pb-16"
       onDragOver={handleDragOver}
       onDragEnter={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      <Bubbles />
-
-      <div className="leaf leaf-1">🍃</div>
-      <div className="leaf leaf-2">🌿</div>
-      <div className="leaf leaf-3">☘️</div>
+      <GlassOrbs />
+      <LightRays />
 
       <div className={`container ${isDragging ? "drag-active" : ""}`}>
         <div className="title-bar">
@@ -204,15 +212,15 @@ export default function Home() {
             <div className="dot dot-yel" />
             <div className="dot dot-grn" />
           </div>
-          <h1>✦ AquaToob Converter ✦</h1>
+          <h1>AquaToob</h1>
           <div className="spacer" />
         </div>
 
         <div className="glass-panel">
           <div className="logo-section">
-            <div className="logo-icon">💧</div>
+            <div className="logo-icon">💎</div>
             <h2>AquaToob</h2>
-            <p>paste · convert · download ✨</p>
+            <p>paste · convert · download</p>
           </div>
 
           <div className="input-group">
@@ -239,7 +247,7 @@ export default function Home() {
               📋
             </button>
           </div>
-          <div className="drag-hint">or drag & drop a link onto this window ✦</div>
+          <div className="drag-hint">or drag & drop a link onto this window</div>
 
           <div className="format-selector">
             <button
@@ -260,14 +268,14 @@ export default function Home() {
 
           {format === "mp4" && (
             <div className="quality-row">
-              <label>⚙️ Quality:</label>
+              <label>Quality:</label>
               <select
                 className="quality-select"
                 value={quality}
                 onChange={(e) => setQuality(e.target.value as Quality)}
                 disabled={isConverting}
               >
-                <option value="1080">1080p HD ✦</option>
+                <option value="1080">1080p HD</option>
                 <option value="720">720p</option>
                 <option value="480">480p</option>
                 <option value="360">360p</option>
@@ -281,10 +289,10 @@ export default function Home() {
             disabled={!url.trim() || isConverting}
           >
             <span>{isConverting ? "⏳" : "⚡"}</span>
-            {isConverting ? "Converting..." : "Convert Now!"}
+            {isConverting ? "Converting..." : "Convert"}
           </button>
 
-          {error && <div className="error-msg">⚠️ {error}</div>}
+          {error && <div className="error-msg">{error}</div>}
 
           {showProgress && (
             <div className="progress-area">
@@ -325,19 +333,19 @@ export default function Home() {
               <div className="progress-text">
                 {status === "fetching" && "Fetching video info..."}
                 {status === "converting" && "Downloading & converting..."}
-                {status === "done" && "✅ Done! Check your downloads."}
+                {status === "done" && "Done — check your downloads."}
               </div>
 
               {status === "done" && (
                 <button className="another-btn" onClick={handleReset}>
-                  🔄 Convert Another Video
+                  Convert Another
                 </button>
               )}
             </div>
           )}
         </div>
 
-        <div className="footer">AquaToob v1.0 — Made with 💧 and ☀️</div>
+        <div className="footer">AquaToob v1.0</div>
       </div>
     </div>
   );
