@@ -32,12 +32,6 @@ pnpm dev
 
 Open http://localhost:3000
 
-### 4. Use it
-
-1. Paste a YouTube URL
-2. Pick MP4 or MP3
-3. Pick quality (for video)
-4. Hit Convert
-5. File downloads to your browser
+### Voila
 
  
